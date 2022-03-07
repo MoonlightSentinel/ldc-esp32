@@ -1,0 +1,14 @@
+diff --git a/driver/main.cpp b/driver/main.cpp
+index cc0cc843..566a4e96 100644
+--- a/driver/main.cpp
++++ b/driver/main.cpp
+@@ -719,6 +719,9 @@ void registerPredefinedTargetVersions() {
+   case llvm::Triple::wasm64:
+     VersionCondition::addPredefinedGlobalIdent("WebAssembly");
+     break;
++  case llvm::Triple::xtensa:
++    VersionCondition::addPredefinedGlobalIdent("Xtensa");
++    break;
+   default:
+     warning(Loc(), "unknown target CPU architecture: %s",
+             triple.getArchName().str().c_str());

@@ -1,0 +1,25 @@
+diff --git a/source/rt/sections/package.d b/source/rt/sections/package.d
+index 3a095d2..9d5a557 100644
+--- a/source/rt/sections/package.d
++++ b/source/rt/sections/package.d
+@@ -2,10 +2,14 @@ module rt.sections;
+ 
+ version(LWDR_ModuleCtors):
+ 
+-version(ARM)
++version(LDC)
+ {
+-	version(LDC)
+-		public import rt.sections.ldc;
+-	else static assert(0, "Module info not supported on this platform");
++	version(ARM)
++		version = IMPORT_RT_SECTIONS;
++	else version (Xtensa)
++		version = IMPORT_RT_SECTIONS;
+ }
+-else static assert(0, "Module info not supported on this platform");
+\ No newline at end of file
++
++version (IMPORT_RT_SECTIONS)
++	public import rt.sections.ldc;
++else static assert(0, "Module info not supported on this platform");

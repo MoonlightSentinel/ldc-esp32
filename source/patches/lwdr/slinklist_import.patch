@@ -1,0 +1,12 @@
+diff --git a/source/lwdr/internal/slinklist.d b/source/lwdr/internal/slinklist.d
+index 7f19e7d..5a5c1af 100644
+--- a/source/lwdr/internal/slinklist.d
++++ b/source/lwdr/internal/slinklist.d
+@@ -1,7 +1,5 @@
+ module lwdr.internal.slinklist;
+ 
+-import std.traits : isDynamicArray, isPointer;
+-
+ /++
+ For usage within LWDR only. It is a singly-linked-list intended for book keeping memory allocations.
+ It may grow infinitely, at the cost of undeterministic heap fragmentation.

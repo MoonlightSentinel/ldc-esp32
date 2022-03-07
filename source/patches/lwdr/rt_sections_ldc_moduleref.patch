@@ -1,0 +1,38 @@
+diff --git a/source/rt/sections/ldc.d b/source/rt/sections/ldc.d
+index 20c450f..9e0a92b 100644
+--- a/source/rt/sections/ldc.d
++++ b/source/rt/sections/ldc.d
+@@ -1,20 +1,20 @@
+ module rt.sections.ldc;
+ 
++/// A linked list of ModuleInfos
++private extern(C) __gshared void* _Dmodule_ref;
++
+ version(LWDR_ModuleCtors):
+ 
+ version(LDC):
+ pragma(LDC_no_moduleinfo);
+ 
+-/// A linked list of ModuleInfos
+-private extern(C) __gshared ModuleRef* _Dmodule_ref;
+-
+ private struct ModuleRef
+ {
+ 	ModuleRef* next; /// next node in linked list
+ 	immutable(ModuleInfo)* moduleInfo;
+ }
+ 
+-/// Returns a range over all modules present. 
++/// Returns a range over all modules present.
+ auto allModules() nothrow @nogc
+ {
+ 	static struct Modules
+@@ -31,5 +31,5 @@ auto allModules() nothrow @nogc
+ 		void popFront()
+ 		{ current = current.next; }
+ 	}
+-	return Modules(_Dmodule_ref);
+-}
+\ No newline at end of file
++	return Modules(cast(ModuleRef*) _Dmodule_ref);
++}

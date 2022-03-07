@@ -1,0 +1,28 @@
+diff --git a/source/object.d b/source/object.d
+index 3a981e8..cbda686 100644
+--- a/source/object.d
++++ b/source/object.d
+@@ -1,5 +1,7 @@
+ module object;
+ 
++public import core.internal.entrypoint : _d_cmain;
++
+ import util;
+ import rtoslink;
+ import lifetime.throwable;
+@@ -612,12 +614,14 @@ enum
+ * It provides access to various aspects of the module.
+ * It is not generated for betterC.
+ */
+-version(LWDR_ModuleCtors)
+ struct ModuleInfo
+ {
+     uint _flags; // MIxxxx
+     uint _index; // index into _moduleinfo_array[]
+ 
++// Need the dummy declaration
++version(LWDR_ModuleCtors):
++
+     version (all)
+     {
+         deprecated("ModuleInfo cannot be copy-assigned because it is a variable-sized struct.")

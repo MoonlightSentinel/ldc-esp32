@@ -25,3 +25,7 @@ docs/
 
 # Build / Temporary directories
 build
+release
+
+# Other
+.patched

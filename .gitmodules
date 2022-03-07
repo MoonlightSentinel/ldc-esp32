@@ -1,0 +1,9 @@
+[submodule "sources/ldc"]
+	path = source/ldc
+	url = https://github.com/ldc-developers/ldc
+[submodule "source/lwdr"]
+	path = source/lwdr
+	url = https://github.com/hmmdyl/LWDR.git
+[submodule "source/espressif-llvm"]
+	path = source/espressif-llvm
+	url = https://github.com/espressif/llvm-project.git

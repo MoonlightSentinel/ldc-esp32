@@ -1,0 +1,223 @@
+name: Build LDC for Xtensa
+
+on:
+  push:
+    branches:
+      - main
+      - github-actions
+
+  pull_request:
+
+  # schedule:
+  #   - cron: '0 10 * * *'
+
+jobs:
+  main:
+    name: Build LDC on ${{ matrix.os }}
+
+    # Only run schedule for the main repository - not forks
+    # if: ${{ github.event_name != 'schedule' || github.repository == 'dlang-tour/core-exec' }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-20.04
+          - macos-10.15
+          # - windows-2016
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+      LLVM_RELEASE: ${{ github.workspace }}/release/llvm
+      LDC_RELEASE:  ${{ github.workspace }}/release/ldc2
+      LWDR_RELEASE:  ${{ github.workspace }}/release/lwdr
+
+      CC: clang
+      CXX: clang++
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+
+      #########################################################################
+      # Fetch sources and cached artifacts
+      #########################################################################
+      - name: Checkout repository and submodules
+        uses: actions/checkout@v2
+        # No recursive clone, fetch submodules on demand (cache miss)
+
+      - name: Determine cache keys
+        id: cache-keys
+        run: |
+          set -eux
+
+          OS="${{ matrix.os }}"
+          OS_NAME="$(echo $OS | cut -f1 -d- )"
+          echo "OS_NAME=$OS_NAME" >> $GITHUB_ENV
+
+          REPO="$(git rev-parse HEAD)"
+          LLVM="$(git rev-parse HEAD:source/espressif-llvm)"
+          LDC="$( git rev-parse HEAD:source/ldc)"
+          LWDR="$(git rev-parse HEAD:source/lwdr)"
+
+          # LLVM_PATCH="${{ hashFiles('source/patches/llvm') }}"
+          LDC_PATCH="${{ hashFiles('source/patches/ldc') }}"
+          LWDR_PATCH="${{ hashFiles('source/patches/lwdr') }}"
+
+          LLVM_KEY="$OS-latest-$LLVM"
+          LDC_KEY="l$LLVM_KEY-$LDC+$LDC_PATCH"
+          LWDR_KEY="$LDC_KEY-$LWDR+$LWDR_PATCH"
+
+          echo "::set-output name=repo_ref::$REPO"
+          echo "::set-output name=llvm_ref::$LLVM"
+          echo "::set-output name=ldc_ref::$LDC"
+          echo "::set-output name=lwdr_ref::$LWDR"
+
+          echo "::set-output name=llvm_key::$LLVM_KEY"
+          echo "::set-output name=ldc_key::$LDC_KEY"
+          echo "::set-output name=lwdr_key::$LWDR_KEY"
+
+      - name: Cache LLVM build
+        id: llvm-cache
+        uses: actions/cache@v2
+        with:
+          path: ${{ env.LLVM_RELEASE }}
+          key: ${{ steps.cache-keys.outputs.llvm_key }}
+
+      - name: Cache LDC build
+        id: ldc-cache
+        uses: actions/cache@v2
+        with:
+          path: ${{ env.LDC_RELEASE }}
+          key: ${{ steps.cache-keys.outputs.ldc_key }}
+
+      #########################################################################
+      # Fetch dependencies and build tools
+      #########################################################################
+
+      - name: Install build tools
+        if: ${{ steps.llvm-cache.outputs.cache-hit != 'true' || steps.ldc-cache.outputs.cache-hit != 'true' }}
+        run: |
+          set -eux
+
+          echo "::group::Install dependencies"
+
+          case "$OS_NAME" in
+
+            'ubuntu')
+              sudo apt update
+              sudo apt install -y \
+                clang \
+                cmake \
+                ninja-build
+            ;;
+
+            'macos')
+              brew update
+              brew install \
+                llvm \
+                cmake \
+                gnu-sed \
+                ninja
+
+              # Ensure that sed defaults to the GNU version
+              echo "/usr/local/opt/gnu-sed/libexec/gnubin" >> $GITHUB_PATH
+            ;;
+
+            'windows')
+              choco install ninja
+            ;;
+
+            *)
+              echo "Unknown OS: '$OS_NAME'!"
+              exit 1
+          esac
+
+          echo "::group::Print versions"
+          cmake --version
+          clang --version
+          ninja --version
+
+
+      #########################################################################
+      # Build modified LLVM
+      #########################################################################
+
+      - name: Build llvm/clang for xtensa
+        if: ${{ steps.llvm-cache.outputs.cache-hit != 'true' }}
+        run: |
+          git submodule update --init --recursive --depth=1 --jobs=2 source/espressif-llvm
+          ./build.sh llvm
+
+      #########################################################################
+      # Build LDC using the customized LLVM
+      #########################################################################
+
+      - name: Install host LDC
+        uses: dlang-community/setup-dlang@v1
+        if: ${{ steps.ldc-cache.outputs.cache-hit != 'true' }}
+        with:
+          compiler: ldc-latest
+
+      - name: Build LDC
+        if: ${{ steps.ldc-cache.outputs.cache-hit != 'true' }}
+        run: |
+          git submodule update --init --recursive --depth=1 --jobs=2 source/ldc
+          ./build.sh ldc
+
+      #########################################################################
+      # Build LWDR
+      #########################################################################
+
+      - name: Cache LWDR build
+        id: lwdr-cache
+        uses: actions/cache@v2
+        with:
+          path: ${{ env.LWDR_RELEASE }}
+          key: ${{ steps.cache-keys.outputs.lwdr_key }}
+
+      - name: Build LWDR
+        if: ${{ steps.lwdr-cache.outputs.cache-hit != 'true' }}
+        run: |
+          git submodule update --init --recursive --depth=1 --jobs=2 source/lwdr
+          ./build.sh lwdr
+
+      #########################################################################
+      # Create the new release if necessary
+      #########################################################################
+
+      - name: Package the archive
+        if: ${{ steps.lwdr-cache.outputs.cache-hit != 'true' }}
+        run: ./build.sh archive
+
+      - name: Create the release
+        if: ${{ steps.lwdr-cache.outputs.cache-hit != 'true' }}
+        uses: ncipollo/release-action@v1
+        with:
+          token: "${{ secrets.GITHUB_TOKEN }}"
+          name: LDC for Xtensa
+          body: |
+            LDC for Xtensa built with Espressif's fork (incl. LWDR)
+
+            Note that the official date and commit will be outdated because this
+            release bundles sources from several repositories and is continuously updated.
+
+            The actually built revisions are:
+
+            | Component | Revision                                                        |
+            | --------- | --------------------------------------------------------------- |
+            | LLVM      | espressif/llvm-project@${{ steps.cache-keys.outputs.llvm_ref }} |
+            | LDC       | ldc-developers/ldc@${{ steps.cache-keys.outputs.ldc_ref }}      |
+            | LWDR      | hmmdyl/LWDR@${{ steps.cache-keys.outputs.lwdr_ref }}            |
+            | Builder   | ${{ steps.cache-keys.outputs.repo_ref }}                        |
+
+          artifacts: '${{ github.workspace }}/release/ldc2-xtensa-*'
+          artifactErrorsFailBuild: true
+
+          # Always tag the same commit to only update the body + assets
+          tag: ldc-xtensa-release
+          commit: 42622542cc0b1f98e7714a6a0df76f0adce9f95a
+          allowUpdates: true
